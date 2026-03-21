@@ -6,7 +6,7 @@ import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCWSrX6oQC7xppXiiEgF4bPj9ln9azHp74",
   authDomain: "ambulance-system-1ddac.firebaseapp.com",
-  databaseURL: "https://console.firebase.google.com/u/0/project/ambulance-system-1ddac/database/ambulance-system-1ddac-default-rtdb/data/~2F", // ⚠️ ADD THIS
+  databaseURL: "https://console.firebase.google.com", // ⚠️ ADD THIS
   projectId: "ambulance-system-1ddac",
   storageBucket: "ambulance-system-1ddac.firebasestorage.app",
   messagingSenderId: "530152972228",
