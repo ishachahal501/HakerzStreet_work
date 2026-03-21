@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WHAMBULANCE — Emergency Response System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/index.css">
+</head>
+<body>
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-logo">🚑 WHAMBULANCE</div>
+    <div class="nav-links">
+      <a href="index.html" class="nav-link active">Emergency</a>
+      <a href="pages/track.html" class="nav-link">Track</a>
+      <a href="pages/hospital.html" class="nav-link">Hospitals</a>
+      <a href="pages/admin.html" class="nav-link">Admin</a>
+      <a href="pages/hospital-dashboard.html" class="nav-link">Dashboard</a>
+    </div>
+    <div class="nav-status">
+      <span class="status-dot pulse"></span>
+      <span class="mono">SYSTEM LIVE</span>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg">
+      <div class="grid-overlay"></div>
+      <div class="radar-ring r1"></div>
+      <div class="radar-ring r2"></div>
+      <div class="radar-ring r3"></div>
+    </div>
+    <div class="hero-content">
+      <div class="hero-badge mono">EMERGENCY RESPONSE SYSTEM v2.0</div>
+      <h1 class="hero-title">EVERY<br><span class="accent">SECOND</span><br>COUNTS</h1>
+      <p class="hero-sub">AI-powered dispatch & route optimization.<br>Get an ambulance to you — fast.</p>
+      <button class="sos-btn" onclick="openSOSModal()">
+        <span class="sos-icon">🚨</span>
+        REQUEST EMERGENCY NOW
+      </button>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-num" data-target="142">0</div>
+        <div class="stat-label">Active Units</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" data-target="6">0</div>
+        <div class="stat-label">Avg Response (min)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" data-target="98">0</div>
+        <div class="stat-label">Success Rate %</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" data-target="24">0</div>
+        <div class="stat-label">Hospitals Live</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE FEED -->
+  <section class="live-section">
+    <div class="section-header">
+      <h2>LIVE DISPATCH FEED</h2>
+      <span class="mono blink-text">● REAL-TIME</span>
+    </div>
+    <div class="dispatch-feed" id="dispatchFeed"></div>
+  </section>
+
+  <!-- QUICK INFO -->
+  <section class="info-section">
+    <div class="info-card">
+      <div class="info-icon">🏥</div>
+      <h3>Hospital Network</h3>
+      <p>Connected to 24 hospitals across the city with real-time bed & ICU availability.</p>
+      <a href="pages/hospital.html" class="info-link">View Hospitals →</a>
+    </div>
+    <div class="info-card">
+      <div class="info-icon">🚑</div>
+      <h3>Fleet Tracking</h3>
+      <p>142 ambulances tracked in real-time with GPS, ETA predictions, and route optimization.</p>
+      <a href="pages/track.html" class="info-link">Track Units →</a>
+    </div>
+    <div class="info-card">
+      <div class="info-icon">📊</div>
+      <h3>Admin Control</h3>
+      <p>Dispatch operators manage requests, assign units, and monitor city-wide operations.</p>
+      <a href="pages/admin.html" class="info-link">Open Admin →</a>
+    </div>
+  </section>
+
+  <!-- SOS MODAL -->
+  <div class="modal-overlay" id="sosModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-badge">🚨 EMERGENCY REQUEST</span>
+        <button class="modal-close" onclick="closeSOSModal()">✕</button>
+      </div>
+      <form class="sos-form" onsubmit="submitSOS(event)">
+        <div class="form-group">
+          <label>Emergency Type</label>
+          <div class="emergency-types">
+            <button type="button" class="type-btn active" data-type="medical">🫀 Medical</button>
+            <button type="button" class="type-btn" data-type="accident">🚗 Accident</button>
+            <button type="button" class="type-btn" data-type="cardiac">❤️ Cardiac</button>
+            <button type="button" class="type-btn" data-type="trauma">🩸 Trauma</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" placeholder="Full name" required class="form-input"/>
+        </div>
+        <div class="form-group">
+          <label>Phone Number</label>
+          <input type="tel" placeholder="+91 XXXXX XXXXX" required class="form-input"/>
+        </div>
+        <div class="form-group">
+          <label>Location</label>
+          <div class="location-row">
+            <input type="text" placeholder="Enter address or use GPS" class="form-input" id="locationInput"/>
+            <button type="button" class="gps-btn" onclick="getLocation()">📍 GPS</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Brief Description</label>
+          <textarea class="form-input" rows="3" placeholder="Describe the emergency briefly..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Number of People Affected</label>
+          <select class="form-input">
+            <option>1 person</option>
+            <option>2-3 people</option>
+            <option>4+ people</option>
+          </select>
+        </div>
+        <button type="submit" class="submit-sos-btn">
+          DISPATCH AMBULANCE NOW
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- CONFIRMATION -->
+  <div class="modal-overlay" id="confirmModal" style="display:none">
+    <div class="modal confirm-modal">
+      <div class="confirm-icon">✅</div>
+      <h2>REQUEST RECEIVED</h2>
+      <p>Emergency #<span class="mono accent" id="reqId">EM-2847</span> created</p>
+      <div class="confirm-details">
+        <div class="confirm-row">
+          <span>Nearest Ambulance</span>
+          <span class="mono">AMB-047</span>
+        </div>
+        <div class="confirm-row">
+          <span>Estimated Arrival</span>
+          <span class="mono accent">4 min 30 sec</span>
+        </div>
+        <div class="confirm-row">
+          <span>Assigned Hospital</span>
+          <span class="mono">City General ICU</span>
+        </div>
+        <div class="confirm-row">
+          <span>Dispatcher</span>
+          <span class="mono">Operator #12</span>
+        </div>
+      </div>
+      <a href="pages/track.html" class="submit-sos-btn" style="display:block;text-align:center;text-decoration:none;margin-top:1rem">
+        TRACK YOUR AMBULANCE →
+      </a>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+  <script src="js/index.js"></script>
+</body>
+</html>

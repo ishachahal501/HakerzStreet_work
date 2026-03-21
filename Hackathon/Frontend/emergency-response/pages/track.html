@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WHAMBULANCE — Live Tracking</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <style>
+    .track-layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      height: calc(100vh - 60px);
+    }
+    .sidebar {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0;
+      background: var(--bg2);
+      z-index: 10;
+    }
+    .sidebar-header h2 { font-family: var(--font-display); font-size: 1.3rem; letter-spacing: 2px; }
+    .sidebar-search {
+      padding: 0.9rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-search input {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      color: var(--text);
+      font-family: var(--font-body);
+      outline: none;
+      font-size: 0.88rem;
+    }
+    .sidebar-search input:focus { border-color: var(--red); }
+    .amb-list { padding: 0.75rem; flex: 1; }
+    .amb-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .amb-card:hover, .amb-card.active {
+      border-color: var(--red);
+      background: var(--card2);
+    }
+    .amb-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+    .amb-id { font-family: var(--font-mono); font-size: 0.88rem; font-weight: 700; }
+    .amb-card-meta { font-size: 0.78rem; color: var(--text-dim); }
+    .amb-card-eta { margin-top: 0.5rem; }
+    .eta-bar { height: 3px; background: var(--bg2); border-radius: 2px; margin-top: 0.3rem; }
+    .eta-fill { height: 100%; border-radius: 2px; background: var(--red); transition: width 2s ease; }
+
+    /* MAP AREA */
+    .map-area {
+      position: relative;
+      background: var(--bg3);
+      overflow: hidden;
+    }
+    .map-canvas { width: 100%; height: 100%; }
+    .map-overlay-top {
+      position: absolute; top: 1rem; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 0.5rem; align-items: center;
+    }
+    .map-pill {
+      background: rgba(5,8,16,0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.4rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+    .map-overlay-br {
+      position: absolute; bottom: 1.5rem; right: 1.5rem;
+      background: rgba(5,8,16,0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      min-width: 200px;
+    }
+    .map-overlay-br h4 { font-family: var(--font-display); font-size: 1rem; letter-spacing: 1px; margin-bottom: 0.75rem; }
+    .legend-item { display: flex; align-items: center; gap: 0.6rem; font-size: 0.78rem; margin-bottom: 0.4rem; color: var(--text-dim); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* AMBULANCE DETAIL PANEL */
+    .detail-panel {
+      position: absolute;
+      bottom: 1.5rem; left: 1.5rem;
+      background: rgba(5,8,16,0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-red);
+      border-radius: 14px;
+      padding: 1.25rem;
+      min-width: 260px;
+      display: none;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:translateY(0) } }
+    .detail-panel.show { display: block; }
+    .detail-header { display: flex; justify-content: space-between; margin-bottom: 1rem; }
+    .detail-id { font-family: var(--font-display); font-size: 1.4rem; letter-spacing: 2px; color: var(--red); }
+    .detail-close { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:1rem; }
+    .detail-row { display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px solid var(--border); font-size:0.82rem; }
+    .detail-row:last-child { border:none; }
+    .detail-row span:first-child { color:var(--text-dim); }
+    .route-btn {
+      width:100%; margin-top:0.75rem; padding:0.65rem;
+      background:var(--red); border:none; border-radius:8px;
+      color:#fff; font-family:var(--font-display); font-size:1rem;
+      letter-spacing:1px; cursor:pointer; transition:background 0.2s;
+    }
+    .route-btn:hover { background:var(--red-dim); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-logo">🚑 WHAMBULANCE</div>
+    <div class="nav-links">
+      <a href="../index.html" class="nav-link">Emergency</a>
+      <a href="track.html" class="nav-link active">Track</a>
+      <a href="hospital.html" class="nav-link">Hospitals</a>
+      <a href="admin.html" class="nav-link">Admin</a>
+      <a href="hospital-dashboard.html" class="nav-link">Dashboard</a>
+    </div>
+    <div class="nav-status">
+      <span class="status-dot pulse"></span>
+      <span class="mono" id="liveClock">00:00:00</span>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <div class="track-layout">
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <h2>ACTIVE UNITS</h2>
+          <span class="badge badge-red" id="activeCount">12 ACTIVE</span>
+        </div>
+        <div class="sidebar-search">
+          <input type="text" placeholder="Search AMB-XXX or location..." oninput="filterAmbs(this.value)"/>
+        </div>
+        <div class="amb-list" id="ambList"></div>
+      </div>
+
+      <!-- MAP -->
+      <div class="map-area">
+        <canvas class="map-canvas" id="mapCanvas"></canvas>
+
+        <div class="map-overlay-top">
+          <div class="map-pill">📍 NEW DELHI, INDIA</div>
+          <div class="map-pill blink-text">● LIVE TRACKING</div>
+        </div>
+
+        <div class="detail-panel" id="detailPanel">
+          <div class="detail-header">
+            <span class="detail-id" id="dpId">AMB-041</span>
+            <button class="detail-close" onclick="closeDetail()">✕</button>
+          </div>
+          <div class="detail-row"><span>Status</span><span class="badge badge-red" id="dpStatus">EN ROUTE</span></div>
+          <div class="detail-row"><span>Driver</span><span class="mono" id="dpDriver">Raj Kumar</span></div>
+          <div class="detail-row"><span>ETA</span><span class="mono accent" id="dpEta">4 min 12 sec</span></div>
+          <div class="detail-row"><span>Destination</span><span id="dpDest" style="font-size:0.78rem">AIIMS Trauma</span></div>
+          <div class="detail-row"><span>Speed</span><span class="mono" id="dpSpeed">62 km/h</span></div>
+          <div class="detail-row"><span>Equipment</span><span style="font-size:0.75rem">AED, O2, Defibrillator</span></div>
+          <button class="route-btn">VIEW FULL ROUTE</button>
+        </div>
+
+        <div class="map-overlay-br">
+          <h4>LEGEND</h4>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Dispatched</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>En Route</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Available</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>Hospital</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#fff"></div>Emergency</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/main.js"></script>
+  <script>
+    const AMBULANCES = [
+      { id: 'AMB-023', driver: 'Arun Sharma', status: 'EN ROUTE', eta: '3 min 45s', dest: 'AIIMS Delhi', speed: 68, type: 'ALS', etaPct: 72 },
+      { id: 'AMB-041', driver: 'Raj Kumar', status: 'DISPATCHED', eta: '6 min 10s', dest: 'Safdarjung Hosp.', speed: 55, type: 'BLS', etaPct: 40 },
+      { id: 'AMB-077', driver: 'Priya Singh', status: 'AVAILABLE', eta: '—', dest: 'Station 4', speed: 0, type: 'ALS', etaPct: 0 },
+      { id: 'AMB-019', driver: 'Deepak Rao', status: 'EN ROUTE', eta: '8 min 22s', dest: 'Max Hospital', speed: 72, type: 'MICU', etaPct: 55 },
+      { id: 'AMB-055', driver: 'Meena Patel', status: 'AVAILABLE', eta: '—', dest: 'Station 2', speed: 0, type: 'BLS', etaPct: 0 },
+      { id: 'AMB-062', driver: 'Suresh Nair', status: 'EN ROUTE', eta: '2 min 05s', dest: 'Apollo Hospital', speed: 80, type: 'ALS', etaPct: 88 },
+      { id: 'AMB-088', driver: 'Anita Bose', status: 'DISPATCHED', eta: '5 min 33s', dest: 'Fortis Hospital', speed: 60, type: 'BLS', etaPct: 48 },
+      { id: 'AMB-034', driver: 'Vikram Das', status: 'AVAILABLE', eta: '—', dest: 'Station 7', speed: 0, type: 'ALS', etaPct: 0 },
+      { id: 'AMB-011', driver: 'Rajan Mehta', status: 'EN ROUTE', eta: '9 min 00s', dest: 'BLK Hospital', speed: 45, type: 'NICU', etaPct: 30 },
+      { id: 'AMB-099', driver: 'Sunita Verma', status: 'DISPATCHED', eta: '7 min 15s', dest: 'RML Hospital', speed: 65, type: 'BLS', etaPct: 44 },
+      { id: 'AMB-047', driver: 'Mohit Jha', status: 'EN ROUTE', eta: '1 min 30s', dest: 'GTB Hospital', speed: 90, type: 'ALS', etaPct: 95 },
+      { id: 'AMB-066', driver: 'Kavita Roy', status: 'AVAILABLE', eta: '—', dest: 'Station 1', speed: 0, type: 'BLS', etaPct: 0 },
+    ];
+
+    const statusBadge = { 'EN ROUTE': 'badge-blue', 'DISPATCHED': 'badge-red', 'AVAILABLE': 'badge-green' };
+
+    function buildAmbCard(a) {
+      return `
+        <div class="amb-card" id="card-${a.id}" onclick="selectAmb('${a.id}')">
+          <div class="amb-card-top">
+            <span class="amb-id">${a.id}</span>
+            <span class="badge ${statusBadge[a.status]}">${a.status}</span>
+          </div>
+          <div class="amb-card-meta">👤 ${a.driver} &nbsp;|&nbsp; ${a.type}</div>
+          ${a.status !== 'AVAILABLE' ? `
+            <div class="amb-card-eta">
+              <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-dim)">
+                <span>📍 ${a.dest}</span><span class="mono accent">ETA ${a.eta}</span>
+              </div>
+              <div class="eta-bar"><div class="eta-fill" style="width:${a.etaPct}%"></div></div>
+            </div>` : `<div class="amb-card-meta" style="margin-top:0.3rem">📍 ${a.dest}</div>`}
+        </div>`;
+    }
+
+    function renderList(filter = '') {
+      const list = document.getElementById('ambList');
+      const filtered = filter ? AMBULANCES.filter(a => a.id.toLowerCase().includes(filter.toLowerCase()) || a.dest.toLowerCase().includes(filter.toLowerCase())) : AMBULANCES;
+      list.innerHTML = filtered.map(buildAmbCard).join('');
+    }
+    function filterAmbs(v) { renderList(v); }
+
+    let selectedAmb = null;
+    function selectAmb(id) {
+      selectedAmb = AMBULANCES.find(a => a.id === id);
+      document.querySelectorAll('.amb-card').forEach(c => c.classList.remove('active'));
+      const card = document.getElementById('card-' + id);
+      if (card) card.classList.add('active');
+      const dp = document.getElementById('detailPanel');
+      dp.classList.add('show');
+      document.getElementById('dpId').textContent = selectedAmb.id;
+      document.getElementById('dpStatus').textContent = selectedAmb.status;
+      document.getElementById('dpStatus').className = `badge ${statusBadge[selectedAmb.status]}`;
+      document.getElementById('dpDriver').textContent = selectedAmb.driver;
+      document.getElementById('dpEta').textContent = selectedAmb.eta === '—' ? 'Available' : selectedAmb.eta;
+      document.getElementById('dpDest').textContent = selectedAmb.dest;
+      document.getElementById('dpSpeed').textContent = selectedAmb.speed ? selectedAmb.speed + ' km/h' : 'Stationary';
+    }
+    function closeDetail() {
+      document.getElementById('detailPanel').classList.remove('show');
+      document.querySelectorAll('.amb-card').forEach(c => c.classList.remove('active'));
+    }
+
+    // CANVAS MAP SIMULATION
+    const canvas = document.getElementById('mapCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+    window.addEventListener('resize', () => { resize(); });
+    resize();
+
+    // Generate map nodes (simulated Delhi road network)
+    const nodes = [];
+    const hospitals = [
+      { x: 0.5, y: 0.35, name: 'AIIMS' },
+      { x: 0.3, y: 0.5, name: 'Safdarjung' },
+      { x: 0.7, y: 0.6, name: 'Apollo' },
+      { x: 0.55, y: 0.7, name: 'Max Hosp' },
+      { x: 0.2, y: 0.3, name: 'RML' },
+      { x: 0.8, y: 0.4, name: 'Fortis' },
+    ];
+
+    // Ambulance positions (animated)
+    let ambPositions = AMBULANCES.map((a, i) => ({
+      ...a,
+      x: 0.1 + Math.random() * 0.8,
+      y: 0.1 + Math.random() * 0.8,
+      vx: (Math.random() - 0.5) * 0.001,
+      vy: (Math.random() - 0.5) * 0.001,
+      targetX: 0.1 + Math.random() * 0.8,
+      targetY: 0.1 + Math.random() * 0.8,
+    }));
+
+    // Emergency points
+    const emergencies = [
+      { x: 0.45, y: 0.55 },
+      { x: 0.65, y: 0.3 },
+      { x: 0.25, y: 0.7 },
+    ];
+
+    let frame = 0;
+
+    function drawMap() {
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      // Background
+      ctx.fillStyle = '#0a0f1e';
+      ctx.fillRect(0, 0, W, H);
+
+      // Grid
+      ctx.strokeStyle = 'rgba(255,23,68,0.04)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+      // Roads (simulated)
+      const roads = [
+        [0.1, 0.5, 0.9, 0.5], [0.5, 0.1, 0.5, 0.9],
+        [0.2, 0.2, 0.8, 0.8], [0.8, 0.2, 0.2, 0.8],
+        [0.1, 0.3, 0.9, 0.7], [0.3, 0.1, 0.7, 0.9],
+        [0.05, 0.6, 0.95, 0.4],
+      ];
+      roads.forEach(([x1, y1, x2, y2]) => {
+        ctx.beginPath();
+        ctx.moveTo(x1 * W, y1 * H);
+        ctx.lineTo(x2 * W, y2 * H);
+        ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+
+      // Hospital markers
+      hospitals.forEach(h => {
+        const x = h.x * W, y = h.y * H;
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,214,0,0.15)';
+        ctx.fill();
+        ctx.strokeStyle = '#FFD600';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#FFD600';
+        ctx.font = 'bold 10px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('H', x, y + 4);
+        ctx.fillStyle = 'rgba(255,214,0,0.7)';
+        ctx.font = '9px DM Sans, sans-serif';
+        ctx.fillText(h.name, x, y + 22);
+      });
+
+      // Emergency points (blinking)
+      emergencies.forEach(e => {
+        const x = e.x * W, y = e.y * H;
+        const alpha = 0.4 + 0.6 * Math.abs(Math.sin(frame * 0.05));
+        ctx.beginPath();
+        ctx.arc(x, y, 12 + 4 * Math.sin(frame * 0.08), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.4})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.font = '9px DM Sans';
+        ctx.textAlign = 'center';
+        ctx.fillText('🚨', x, y - 16);
+      });
+
+      // Ambulances
+      ambPositions.forEach((a, i) => {
+        // Move toward target
+        const dx = a.targetX - a.x;
+        const dy = a.targetY - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 0.02) {
+          a.targetX = 0.05 + Math.random() * 0.9;
+          a.targetY = 0.05 + Math.random() * 0.9;
+        }
+        if (a.status !== 'AVAILABLE') {
+          a.x += dx * 0.003;
+          a.y += dy * 0.003;
+        }
+
+        const x = a.x * W, y = a.y * H;
+        const color = a.status === 'AVAILABLE' ? '#00E676' : a.status === 'EN ROUTE' ? '#00B0FF' : '#FF1744';
+
+        // Route line to nearest hospital (if active)
+        if (a.status !== 'AVAILABLE' && i < hospitals.length) {
+          const h = hospitals[i % hospitals.length];
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(h.x * W, h.y * H);
+          ctx.strokeStyle = color + '30';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([5, 5]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // Ambulance dot
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = color + '20';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // Label
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '8px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(a.id, x, y - 12);
+      });
+
+      frame++;
+      requestAnimationFrame(drawMap);
+    }
+
+    renderList();
+    drawMap();
+  </script>
+</body>
+</html>

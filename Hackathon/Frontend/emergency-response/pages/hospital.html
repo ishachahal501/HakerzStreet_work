@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WHAMBULANCE — Hospital Network</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+  <style>
+    .hosp-filters {
+      display: flex; gap: 0.5rem; flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 0.45rem 1rem;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn.active, .filter-btn:hover {
+      border-color: var(--red);
+      color: var(--text);
+      background: rgba(255,23,68,0.1);
+    }
+
+    .hospitals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    .hosp-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .hosp-card:hover { border-color: rgba(255,255,255,0.18); transform: translateY(-3px); }
+    .hosp-card-header {
+      padding: 1.1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .hosp-name { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: 1px; }
+    .hosp-type { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem; }
+    .hosp-card-body { padding: 1.1rem 1.25rem; }
+    .hosp-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .hosp-metric-item { }
+    .hosp-metric-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); font-weight: 600; }
+    .hosp-metric-val { font-family: var(--font-mono); font-size: 1.1rem; margin: 0.1rem 0; }
+    .hosp-metric-sub { font-size: 0.72rem; color: var(--text-dim); }
+    .hosp-card-footer {
+      padding: 0.75rem 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .hosp-dist { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); }
+    .hosp-actions { display: flex; gap: 0.5rem; }
+
+    /* CAPACITY INDICATOR */
+    .cap-ring {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      border: 3px solid;
+    }
+    .cap-ring.high { border-color: var(--green); color: var(--green); }
+    .cap-ring.med { border-color: var(--yellow); color: var(--yellow); }
+    .cap-ring.low { border-color: var(--red); color: var(--red); }
+
+    /* SUMMARY ROW */
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    /* SPECIALISTS */
+    .specialists { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+    .spec-tag {
+      padding: 2px 7px;
+      background: rgba(0,176,255,0.1);
+      border: 1px solid rgba(0,176,255,0.25);
+      border-radius: 4px;
+      font-size: 0.68rem;
+      color: var(--blue);
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-logo">🚑 WHAMBULANCE</div>
+    <div class="nav-links">
+      <a href="../index.html" class="nav-link">Emergency</a>
+      <a href="track.html" class="nav-link">Track</a>
+      <a href="hospital.html" class="nav-link active">Hospitals</a>
+      <a href="admin.html" class="nav-link">Admin</a>
+      <a href="hospital-dashboard.html" class="nav-link">Dashboard</a>
+    </div>
+    <div class="nav-status">
+      <span class="status-dot pulse"></span>
+      <span class="mono" id="liveClock">00:00:00</span>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <div class="page-header">
+      <h1>HOSPITAL NETWORK</h1>
+      <p>Real-time bed availability, ICU capacity & specialist status across 24 partner hospitals</p>
+    </div>
+    <div class="page-body">
+      <!-- SUMMARY -->
+      <div class="summary-row">
+        <div class="metric-card">
+          <div class="metric-label">Total Beds</div>
+          <div class="metric-value">4,820</div>
+          <div class="metric-sub"><span class="green">2,140 available</span></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">ICU Beds</div>
+          <div class="metric-value accent">386</div>
+          <div class="metric-sub"><span class="yellow">142 available</span></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Trauma Centers</div>
+          <div class="metric-value blue">8</div>
+          <div class="metric-sub">Level 1: 3 &nbsp;|&nbsp; Level 2: 5</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Hospitals Online</div>
+          <div class="metric-value green">24</div>
+          <div class="metric-sub">All systems reporting</div>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="section-header">
+        <h2>FACILITIES</h2>
+        <div class="hosp-filters">
+          <button class="filter-btn active" onclick="filterHospitals('all', this)">All</button>
+          <button class="filter-btn" onclick="filterHospitals('high', this)">✅ High Capacity</button>
+          <button class="filter-btn" onclick="filterHospitals('icu', this)">🏥 ICU Available</button>
+          <button class="filter-btn" onclick="filterHospitals('trauma', this)">🩸 Trauma</button>
+          <button class="filter-btn" onclick="filterHospitals('cardiac', this)">❤️ Cardiac</button>
+        </div>
+      </div>
+
+      <!-- HOSPITALS GRID -->
+      <div class="hospitals-grid" id="hospGrid"></div>
+    </div>
+  </div>
+
+  <script src="../js/main.js"></script>
+  <script>
+    const HOSPITALS = [
+      { name: 'AIIMS Delhi', type: 'Government — Level 1 Trauma', dist: '2.3 km', beds: 220, avail: 45, icu: 40, icuAvail: 8, amb: 6, tags: ['trauma','cardiac','neuro'], status: 'med' },
+      { name: 'Safdarjung Hospital', type: 'Government — Level 1 Trauma', dist: '3.1 km', beds: 180, avail: 80, icu: 30, icuAvail: 18, amb: 5, tags: ['trauma','burns','ortho'], status: 'high' },
+      { name: 'Apollo Hospital', type: 'Private — Multi-Specialty', dist: '5.7 km', beds: 150, avail: 62, icu: 25, icuAvail: 10, amb: 4, tags: ['cardiac','neuro','oncology'], status: 'high' },
+      { name: 'Max Super Speciality', type: 'Private — Multi-Specialty', dist: '6.2 km', beds: 200, avail: 30, icu: 35, icuAvail: 4, amb: 3, tags: ['cardiac','transplant'], status: 'low' },
+      { name: 'Fortis Hospital', type: 'Private — Multi-Specialty', dist: '8.4 km', beds: 170, avail: 90, icu: 28, icuAvail: 14, amb: 4, tags: ['trauma','cardiac','neuro'], status: 'high' },
+      { name: 'RML Hospital', type: 'Government — General', dist: '4.0 km', beds: 160, avail: 55, icu: 20, icuAvail: 7, amb: 3, tags: ['general','ortho'], status: 'med' },
+      { name: 'GTB Hospital', type: 'Government — Level 2 Trauma', dist: '9.1 km', beds: 130, avail: 20, icu: 18, icuAvail: 2, amb: 2, tags: ['trauma','burns'], status: 'low' },
+      { name: 'BLK Max Hospital', type: 'Private — Multi-Specialty', dist: '5.0 km', beds: 190, avail: 75, icu: 32, icuAvail: 16, amb: 5, tags: ['cardiac','oncology','transplant'], status: 'high' },
+      { name: 'Lok Nayak Hospital', type: 'Government — General', dist: '3.8 km', beds: 140, avail: 40, icu: 22, icuAvail: 5, amb: 3, tags: ['general','ortho'], status: 'med' },
+      { name: 'Medanta Medicity', type: 'Private — Super Specialty', dist: '12.5 km', beds: 250, avail: 110, icu: 50, icuAvail: 22, amb: 6, tags: ['cardiac','neuro','transplant','oncology'], status: 'high' },
+      { name: 'Indraprastha Apollo', type: 'Private — Multi-Specialty', dist: '7.3 km', beds: 200, avail: 58, icu: 30, icuAvail: 11, amb: 4, tags: ['trauma','cardiac'], status: 'med' },
+      { name: 'Sir Ganga Ram Hospital', type: 'Private — Multi-Specialty', dist: '4.6 km', beds: 175, avail: 66, icu: 28, icuAvail: 13, amb: 4, tags: ['neuro','cardiac','ortho'], status: 'high' },
+    ];
+
+    let activeFilter = 'all';
+
+    function buildCard(h) {
+      const capPct = Math.round((h.avail / h.beds) * 100);
+      const icuPct = Math.round((h.icuAvail / h.icu) * 100);
+      return `
+        <div class="hosp-card" data-tags="${h.tags.join(',')}" data-status="${h.status}">
+          <div class="hosp-card-header">
+            <div>
+              <div class="hosp-name">${h.name}</div>
+              <div class="hosp-type">${h.type}</div>
+              <div class="specialists">${h.tags.map(t => `<span class="spec-tag">${t.toUpperCase()}</span>`).join('')}</div>
+            </div>
+            <div class="cap-ring ${h.status}">${capPct}%</div>
+          </div>
+          <div class="hosp-card-body">
+            <div class="hosp-metrics">
+              <div class="hosp-metric-item">
+                <div class="hosp-metric-label">General Beds</div>
+                <div class="hosp-metric-val ${h.avail < 30 ? 'accent' : h.avail < 60 ? 'yellow' : 'green'}">${h.avail}/${h.beds}</div>
+                <div class="progress-bar"><div class="progress-fill ${h.status === 'high' ? 'green' : h.status === 'med' ? 'yellow' : 'red'}" style="width:${capPct}%"></div></div>
+              </div>
+              <div class="hosp-metric-item">
+                <div class="hosp-metric-label">ICU Beds</div>
+                <div class="hosp-metric-val ${h.icuAvail < 5 ? 'accent' : h.icuAvail < 12 ? 'yellow' : 'green'}">${h.icuAvail}/${h.icu}</div>
+                <div class="progress-bar"><div class="progress-fill ${icuPct > 50 ? 'green' : icuPct > 25 ? 'yellow' : 'red'}" style="width:${icuPct}%"></div></div>
+              </div>
+              <div class="hosp-metric-item">
+                <div class="hosp-metric-label">Ambulances</div>
+                <div class="hosp-metric-val blue">${h.amb}</div>
+                <div class="hosp-metric-sub">stationed</div>
+              </div>
+              <div class="hosp-metric-item">
+                <div class="hosp-metric-label">Wait Time</div>
+                <div class="hosp-metric-val ${h.status === 'low' ? 'accent' : ''}">${h.status === 'high' ? '~5 min' : h.status === 'med' ? '~15 min' : '~35 min'}</div>
+                <div class="hosp-metric-sub">emergency</div>
+              </div>
+            </div>
+          </div>
+          <div class="hosp-card-footer">
+            <span class="hosp-dist">📍 ${h.dist} away</span>
+            <div class="hosp-actions">
+              <button class="btn btn-outline btn-sm">Details</button>
+              <button class="btn btn-primary btn-sm" onclick="dispatchTo('${h.name}')">Dispatch →</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderHospitals(filter = 'all') {
+      const grid = document.getElementById('hospGrid');
+      let filtered = HOSPITALS;
+      if (filter === 'high') filtered = HOSPITALS.filter(h => h.status === 'high');
+      else if (filter === 'icu') filtered = HOSPITALS.filter(h => h.icuAvail >= 8);
+      else if (filter === 'trauma') filtered = HOSPITALS.filter(h => h.tags.includes('trauma'));
+      else if (filter === 'cardiac') filtered = HOSPITALS.filter(h => h.tags.includes('cardiac'));
+      grid.innerHTML = filtered.map(buildCard).join('');
+    }
+
+    function filterHospitals(type, btn) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFilter = type;
+      renderHospitals(type);
+    }
+
+    function dispatchTo(name) {
+      showToast(`Ambulance assigned to ${name}`, 'success');
+    }
+
+    renderHospitals();
+  </script>
+</body>
+</html>
