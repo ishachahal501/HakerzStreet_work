@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WHAMBULANCE — Emergency Response System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --red: #FF1744; --red-dim: #c41234; --red-glow: rgba(255,23,68,0.22);
+      --green: #00E676; --blue: #00B0FF; --yellow: #FFD600;
+      --bg: #050810; --bg2: #0a0f1e; --bg3: #0f1628;
+      --card: #111827; --border: rgba(255,255,255,0.08);
+      --text: #f0f4ff; --text-dim: #7a8aaa;
+      --font-display: 'Bebas Neue', sans-serif;
+      --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); overflow-x: hidden; }
+
+    .bg-fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse 70% 55% at 15% 50%, rgba(255,23,68,0.07) 0%, transparent 55%), radial-gradient(ellipse 55% 50% at 85% 50%, rgba(0,176,255,0.05) 0%, transparent 55%); }
+    .grid-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; background-image: linear-gradient(rgba(255,23,68,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,23,68,0.03) 1px, transparent 1px); background-size: 55px 55px; }
+    .radar-ring { position: fixed; border-radius: 50%; border: 1px solid rgba(255,23,68,0.09); top: 50%; left: 50%; transform: translate(-50%,-50%); animation: rp 5s ease-out infinite; pointer-events: none; }
+    .r1 { width: 380px; height: 380px; animation-delay: 0s; }
+    .r2 { width: 700px; height: 700px; animation-delay: 1.7s; }
+    .r3 { width: 1050px; height: 1050px; animation-delay: 3.4s; }
+    @keyframes rp { 0%{opacity:.55;transform:translate(-50%,-50%) scale(.88)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.12)} }
+
+    .page { position: relative; z-index: 10; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 1rem; }
+
+    .logo-block { text-align: center; margin-bottom: 3rem; }
+    .logo-text { font-family: var(--font-display); font-size: clamp(3rem, 9vw, 5.5rem); letter-spacing: 10px; color: var(--red); text-shadow: 0 0 50px rgba(255,23,68,0.35); display: block; line-height: 1; }
+    .logo-sub { font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 4px; color: var(--text-dim); margin-top: 0.5rem; display: block; }
+    .live-pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 0.85rem; padding: 4px 14px; background: rgba(0,230,118,0.07); border: 1px solid rgba(0,230,118,0.2); border-radius: 20px; font-family: var(--font-mono); font-size: 0.65rem; color: var(--green); }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 1.3s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.15} }
+
+    .role-heading { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 3px; color: var(--text-dim); text-align: center; text-transform: uppercase; margin-bottom: 1.4rem; }
+
+    .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; width: 100%; max-width: 640px; }
+
+    .role-card {
+      position: relative; cursor: pointer;
+      background: var(--card); border-radius: 22px;
+      border: 2px solid var(--border);
+      padding: 2.5rem 1.75rem; text-align: center; overflow: hidden;
+      transition: transform 0.3s cubic-bezier(.2,.8,.3,1), border-color 0.3s, box-shadow 0.3s;
+      animation: fadeUp .55s ease both;
+    }
+    .role-card:nth-child(1) { animation-delay: 0.08s; }
+    .role-card:nth-child(2) { animation-delay: 0.2s; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:translateY(0)} }
+    .role-card::before { content:''; position:absolute; inset:0; opacity:0; transition:opacity 0.35s; border-radius:20px; }
+    .role-card.user-card::before { background: radial-gradient(ellipse at 50% 110%, rgba(255,23,68,0.15) 0%, transparent 60%); }
+    .role-card.hosp-card::before { background: radial-gradient(ellipse at 50% 110%, rgba(0,176,255,0.13) 0%, transparent 60%); }
+    .role-card:hover { transform: translateY(-8px); }
+    .role-card.user-card:hover { border-color: rgba(255,23,68,0.5); box-shadow: 0 20px 50px rgba(255,23,68,0.13); }
+    .role-card.hosp-card:hover { border-color: rgba(0,176,255,0.5); box-shadow: 0 20px 50px rgba(0,176,255,0.11); }
+    .role-card:hover::before { opacity: 1; }
+
+    .card-icon { font-size: 3.5rem; display: block; margin-bottom: 1rem; position: relative; z-index: 1; }
+    .card-title { font-family: var(--font-display); font-size: 1.8rem; letter-spacing: 4px; display: block; margin-bottom: 0.55rem; position: relative; z-index: 1; }
+    .user-card .card-title { color: var(--red); }
+    .hosp-card .card-title { color: var(--blue); }
+    .card-desc { font-size: 0.82rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 1.5rem; position: relative; z-index: 1; }
+    .card-features { list-style: none; text-align: left; margin-bottom: 1.75rem; position: relative; z-index: 1; }
+    .card-features li { font-size: 0.78rem; color: var(--text-dim); padding: 0.28rem 0; display: flex; align-items: center; gap: 0.55rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .card-features li:last-child { border: none; }
+    .card-features li span.dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .user-card .card-features li span.dot { background: var(--red); }
+    .hosp-card .card-features li span.dot { background: var(--blue); }
+
+    .enter-btn {
+      display: block; width: 100%; padding: 0.9rem;
+      border: none; border-radius: 11px; overflow: hidden; position: relative; z-index: 1;
+      font-family: var(--font-display); font-size: 1.15rem; letter-spacing: 2.5px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .user-card .enter-btn { background: var(--red); color: #fff; }
+    .user-card .enter-btn:hover { background: var(--red-dim); box-shadow: 0 8px 24px rgba(255,23,68,0.45); transform: translateY(-1px); }
+    .hosp-card .enter-btn { background: #0077cc; color: #fff; }
+    .hosp-card .enter-btn:hover { background: #005fa3; box-shadow: 0 8px 24px rgba(0,176,255,0.35); transform: translateY(-1px); }
+
+    .page-footer { margin-top: 2.5rem; font-family: var(--font-mono); font-size: 0.62rem; color: rgba(122,138,170,0.5); letter-spacing: 1.5px; text-align: center; }
+
+    @media (max-width: 540px) {
+      .role-grid { grid-template-columns: 1fr; max-width: 340px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-fx"></div>
+  <div class="grid-bg"></div>
+  <div class="radar-ring r1"></div>
+  <div class="radar-ring r2"></div>
+  <div class="radar-ring r3"></div>
+
+  <div class="page">
+    <div class="logo-block">
+      <span class="logo-text">🚑 WHAMBULANCE</span>
+      <span class="logo-sub">EMERGENCY RESPONSE SYSTEM</span>
+      <div class="live-pill"><div class="live-dot"></div>ALL SYSTEMS OPERATIONAL</div>
+    </div>
+
+    <p class="role-heading">— Select how you are accessing the system —</p>
+
+    <div class="role-grid">
+      <div class="role-card user-card" onclick="enterAs('user')">
+        <span class="card-icon">🧑‍💼</span>
+        <span class="card-title">CITIZEN</span>
+        <p class="card-desc">Request emergency services, locate nearby hospitals and track your ambulance.</p>
+        <ul class="card-features">
+          <li><span class="dot"></span>Find hospitals near your location</li>
+          <li><span class="dot"></span>One-tap SOS ambulance request</li>
+          <li><span class="dot"></span>Live ambulance tracking</li>
+          <li><span class="dot"></span>Real-time bed &amp; ICU availability</li>
+        </ul>
+        <button class="enter-btn">ENTER AS USER →</button>
+      </div>
+
+      <div class="role-card hosp-card" onclick="enterAs('hospital')">
+        <span class="card-icon">🏥</span>
+        <span class="card-title">HOSPITAL</span>
+        <p class="card-desc">Manage ICU capacity, bed allocation, ambulance fleet and incoming patients.</p>
+        <ul class="card-features">
+          <li><span class="dot"></span>ICU &amp; bed management</li>
+          <li><span class="dot"></span>Ambulance fleet control</li>
+          <li><span class="dot"></span>Incoming patient queue</li>
+          <li><span class="dot"></span>Staff &amp; dispatch dashboard</li>
+        </ul>
+        <button class="enter-btn">ENTER AS HOSPITAL →</button>
+      </div>
+    </div>
+
+    <p class="page-footer">WHAMBULANCE v2.0 &nbsp;·&nbsp; HACKATHON PROTOTYPE &nbsp;·&nbsp; EMERGENCY SERVICES DEMO</p>
+  </div>
+
+  <script>
+    function enterAs(role) {
+      sessionStorage.setItem('rapidRole', role);
+      sessionStorage.setItem('rapidLoggedIn', 'true');
+      window.location.href = role === 'hospital'
+        ? 'pages/hospital-onboard.html'
+        : 'pages/user-location.html';
+    }
+  </script>
+</body>
+</html>
