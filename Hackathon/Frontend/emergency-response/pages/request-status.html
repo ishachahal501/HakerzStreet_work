@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WHAMBULANCE — Request Status</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    :root {
+      --red:#FF1744; --red-dim:#c41234; --red-glow:rgba(255,23,68,.22);
+      --green:#00E676; --blue:#00B0FF; --yellow:#FFD600; --orange:#FF6D00;
+      --bg:#050810; --bg2:#0a0f1e; --bg3:#0f1628;
+      --card:#111827; --card2:#1a2235;
+      --border:rgba(255,255,255,.08); --border-red:rgba(255,23,68,.3);
+      --text:#f0f4ff; --text-dim:#7a8aaa;
+      --font-display:'Bebas Neue',sans-serif;
+      --font-body:'DM Sans',sans-serif;
+      --font-mono:'JetBrains Mono',monospace;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-body);overflow:hidden}
+
+    /* NAV */
+    .nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;height:56px;background:rgba(5,8,16,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+    .nav-logo{font-family:var(--font-display);font-size:1.5rem;letter-spacing:2px;color:var(--red)}
+    .nav-req{font-family:var(--font-mono);font-size:.75rem;color:var(--text-dim);display:flex;align-items:center;gap:.5rem}
+    .nav-req span{color:var(--red);font-size:.85rem}
+    .nav-right{display:flex;align-items:center;gap:.75rem}
+    .back-btn{padding:4px 12px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:.72rem;font-family:var(--font-mono);cursor:pointer;transition:background .2s;text-decoration:none}
+    .back-btn:hover{background:rgba(255,255,255,.08);color:var(--text)}
+
+    /* LAYOUT */
+    .layout{display:grid;grid-template-columns:420px 1fr;height:calc(100vh - 56px);margin-top:56px}
+
+    /* LEFT PANEL */
+    .left-panel{display:flex;flex-direction:column;overflow-y:auto;background:var(--bg2);border-right:1px solid var(--border)}
+    .left-panel::-webkit-scrollbar{width:4px}
+    .left-panel::-webkit-scrollbar-thumb{background:var(--border)}
+
+    /* STATUS SECTION */
+    .status-section{padding:1.25rem 1.25rem 1rem;border-bottom:1px solid var(--border);flex-shrink:0}
+
+    /* BIG STATUS BADGE */
+    .status-hero{text-align:center;padding:1.25rem;margin-bottom:1rem;border-radius:16px;border:1px solid;position:relative;overflow:hidden}
+    .status-hero.pending{background:rgba(255,214,0,.06);border-color:rgba(255,214,0,.25)}
+    .status-hero.allocated{background:rgba(0,176,255,.06);border-color:rgba(0,176,255,.25)}
+    .status-hero.enroute{background:rgba(255,109,0,.06);border-color:rgba(255,109,0,.25)}
+    .status-hero.arriving{background:rgba(0,230,118,.06);border-color:rgba(0,230,118,.25)}
+    .status-hero.completed{background:rgba(0,230,118,.08);border-color:rgba(0,230,118,.3)}
+    .status-pulse{position:absolute;inset:0;border-radius:16px;animation:statusPulse 2s ease infinite}
+    .status-hero.enroute .status-pulse{background:radial-gradient(ellipse at 50% 120%,rgba(255,109,0,.08) 0%,transparent 60%)}
+    .status-hero.arriving .status-pulse{background:radial-gradient(ellipse at 50% 120%,rgba(0,230,118,.1) 0%,transparent 60%)}
+    @keyframes statusPulse{0%,100%{opacity:.5}50%{opacity:1}}
+    .status-icon{font-size:2.5rem;display:block;position:relative;z-index:1;animation:iconBounce .5s ease}
+    @keyframes iconBounce{0%{transform:scale(.7)}60%{transform:scale(1.1)}100%{transform:scale(1)}}
+    .status-label{font-family:var(--font-display);font-size:1.8rem;letter-spacing:3px;display:block;margin:.4rem 0 .2rem;position:relative;z-index:1}
+    .status-hero.pending .status-label{color:var(--yellow)}
+    .status-hero.allocated .status-label{color:var(--blue)}
+    .status-hero.enroute .status-label{color:var(--orange)}
+    .status-hero.arriving .status-label{color:var(--green)}
+    .status-hero.completed .status-label{color:var(--green)}
+    .status-desc{font-size:.82rem;color:var(--text-dim);position:relative;z-index:1}
+
+    /* STEPPER */
+    .stepper{display:flex;justify-content:space-between;align-items:flex-start;padding:.75rem 0;position:relative}
+    .stepper::before{content:'';position:absolute;top:18px;left:14px;right:14px;height:2px;background:var(--border);z-index:0}
+    .step{display:flex;flex-direction:column;align-items:center;gap:.3rem;position:relative;z-index:1;flex:1}
+    .step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:.8rem;transition:all .4s}
+    .step.done .step-dot{background:var(--green);border-color:var(--green);box-shadow:0 0 0 4px rgba(0,230,118,.2)}
+    .step.active .step-dot{background:var(--red);border-color:var(--red);box-shadow:0 0 0 6px rgba(255,23,68,.2);animation:activePulse 1.5s infinite}
+    @keyframes activePulse{0%,100%{box-shadow:0 0 0 4px rgba(255,23,68,.3)}50%{box-shadow:0 0 0 8px rgba(255,23,68,.1)}}
+    .step-label{font-size:.62rem;font-family:var(--font-mono);letter-spacing:.5px;color:var(--text-dim);text-align:center;line-height:1.3}
+    .step.done .step-label,.step.active .step-label{color:var(--text)}
+
+    /* ETA TIMER */
+    .eta-box{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem;display:flex;align-items:center;justify-content:space-between;margin-top:.75rem}
+    .eta-label{font-size:.68rem;font-family:var(--font-mono);letter-spacing:1px;color:var(--text-dim);text-transform:uppercase}
+    .eta-time{font-family:var(--font-display);font-size:2rem;letter-spacing:2px;color:var(--green);line-height:1}
+    .eta-time.urgent{color:var(--orange);animation:blink 1s step-end infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+    .eta-dist{font-family:var(--font-mono);font-size:.75rem;color:var(--text-dim)}
+
+    /* INFO CARDS */
+    .info-cards{padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.75rem;flex:1}
+
+    .info-card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .info-card-header{padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+    .info-card-title{font-family:var(--font-mono);font-size:.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim)}
+    .info-card-body{padding:.75rem 1rem}
+    .info-row{display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.84rem}
+    .info-row:last-child{border:none}
+    .info-row-label{color:var(--text-dim);font-size:.8rem}
+    .info-row-val{font-weight:500;text-align:right;max-width:200px}
+
+    /* CALL BTN */
+    .call-btn{display:flex;align-items:center;gap:.5rem;padding:.65rem 1rem;border-radius:9px;border:none;cursor:pointer;font-family:var(--font-body);font-size:.82rem;font-weight:600;transition:all .2s;text-decoration:none}
+    .call-btn-amb{background:rgba(0,176,255,.12);color:var(--blue);border:1px solid rgba(0,176,255,.3)}
+    .call-btn-amb:hover{background:rgba(0,176,255,.22)}
+    .call-btn-hosp{background:rgba(0,230,118,.1);color:var(--green);border:1px solid rgba(0,230,118,.25)}
+    .call-btn-hosp:hover{background:rgba(0,230,118,.2)}
+    .call-btns-row{display:flex;gap:.5rem;padding:.75rem 1rem;border-top:1px solid var(--border)}
+
+    /* URGENCY BADGE */
+    .urgency-badge{padding:2px 10px;border-radius:20px;font-size:.68rem;font-family:var(--font-mono);font-weight:700;letter-spacing:1px}
+    .urgency-critical{background:rgba(255,23,68,.12);color:var(--red);border:1px solid rgba(255,23,68,.3)}
+    .urgency-serious{background:rgba(255,214,0,.1);color:var(--yellow);border:1px solid rgba(255,214,0,.3)}
+    .urgency-stable{background:rgba(0,230,118,.1);color:var(--green);border:1px solid rgba(0,230,118,.25)}
+
+    /* STATUS BADGE */
+    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-family:var(--font-mono);font-size:.68rem;font-weight:700;text-transform:uppercase}
+    .badge-yellow{background:rgba(255,214,0,.1);color:var(--yellow);border:1px solid rgba(255,214,0,.3)}
+    .badge-blue{background:rgba(0,176,255,.1);color:var(--blue);border:1px solid rgba(0,176,255,.25)}
+    .badge-orange{background:rgba(255,109,0,.1);color:var(--orange);border:1px solid rgba(255,109,0,.3)}
+    .badge-green{background:rgba(0,230,118,.1);color:var(--green);border:1px solid rgba(0,230,118,.25)}
+    .badge-red{background:rgba(255,23,68,.1);color:var(--red);border:1px solid rgba(255,23,68,.3)}
+
+    /* CANCEL / SHARE */
+    .action-footer{padding:.9rem 1.25rem;border-top:1px solid var(--border);display:flex;gap:.75rem;flex-shrink:0}
+    .action-footer button{flex:1;padding:.65rem;border-radius:9px;font-family:var(--font-body);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s}
+    .btn-cancel{background:rgba(255,23,68,.08);color:var(--red);border:1px solid rgba(255,23,68,.25)}
+    .btn-cancel:hover{background:rgba(255,23,68,.16)}
+    .btn-share{background:rgba(0,176,255,.08);color:var(--blue);border:1px solid rgba(0,176,255,.2)}
+    .btn-share:hover{background:rgba(0,176,255,.16)}
+
+    /* MAP */
+    .map-area{position:relative}
+    #map{width:100%;height:100%}
+    .leaflet-tile{filter:invert(1) hue-rotate(200deg) brightness(.7) saturate(.6) contrast(1.1)}
+
+    /* MAP OVERLAYS */
+    .map-info-bar{position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:500;display:flex;gap:.5rem}
+    .map-pill{background:rgba(5,8,16,.9);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:20px;padding:4px 14px;font-family:var(--font-mono);font-size:.7rem;color:var(--text-dim)}
+    .map-pill.live{color:var(--green);border-color:rgba(0,230,118,.25)}
+    .blink{animation:blink 1s step-end infinite}
+
+    /* COMPLETED OVERLAY */
+    .completed-overlay{position:absolute;inset:0;z-index:600;background:rgba(5,8,16,.88);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:.75rem}
+    .completed-overlay.show{display:flex;animation:fadeIn .4s ease}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .comp-icon{font-size:5rem}
+    .comp-title{font-family:var(--font-display);font-size:2.5rem;letter-spacing:4px;color:var(--green)}
+    .comp-sub{color:var(--text-dim);font-size:.9rem;max-width:300px;line-height:1.6}
+    .comp-btn{margin-top:.5rem;padding:.85rem 2rem;background:var(--green);color:#000;border:none;border-radius:10px;font-family:var(--font-display);font-size:1.1rem;letter-spacing:2px;cursor:pointer;font-weight:900}
+
+    @media(max-width:768px){
+      .layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;overflow:hidden}
+      .left-panel{max-height:55vh;overflow-y:auto}
+      html,body{overflow:hidden}
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-logo">🚑 WHAMBULANCE</div>
+  <div class="nav-req">Request ID: <span id="navReqId">—</span></div>
+  <div class="nav-right">
+    <a href="user-location.html" class="back-btn">← New Request</a>
+  </div>
+</nav>
+
+<div class="layout">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+
+    <!-- STATUS SECTION -->
+    <div class="status-section">
+
+      <!-- STATUS HERO -->
+      <div class="status-hero pending" id="statusHero">
+        <div class="status-pulse"></div>
+        <span class="status-icon" id="statusIcon">⏳</span>
+        <span class="status-label" id="statusLabel">PENDING</span>
+        <span class="status-desc" id="statusDesc">Your request has been received. Allocating nearest ambulance...</span>
+      </div>
+
+      <!-- STEPPER -->
+      <div class="stepper" id="stepper">
+        <div class="step active" id="step-pending">
+          <div class="step-dot">📋</div>
+          <div class="step-label">Request<br>Sent</div>
+        </div>
+        <div class="step" id="step-allocated">
+          <div class="step-dot">🔍</div>
+          <div class="step-label">Ambulance<br>Allocated</div>
+        </div>
+        <div class="step" id="step-enroute">
+          <div class="step-dot">🚑</div>
+          <div class="step-label">En<br>Route</div>
+        </div>
+        <div class="step" id="step-arriving">
+          <div class="step-dot">📍</div>
+          <div class="step-label">Arriving<br>Soon</div>
+        </div>
+        <div class="step" id="step-completed">
+          <div class="step-dot">✅</div>
+          <div class="step-label">Patient<br>Picked Up</div>
+        </div>
+      </div>
+
+      <!-- ETA BOX -->
+      <div class="eta-box">
+        <div>
+          <div class="eta-label">Estimated Arrival</div>
+          <div class="eta-time" id="etaDisplay">--:--</div>
+        </div>
+        <div style="text-align:right">
+          <div class="eta-label">Distance</div>
+          <div class="eta-dist" id="distDisplay">— km</div>
+        </div>
+        <div style="text-align:right">
+          <div class="eta-label">Status</div>
+          <div id="statusBadge"><span class="badge badge-yellow">PENDING</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INFO CARDS -->
+    <div class="info-cards">
+
+      <!-- AMBULANCE CARD -->
+      <div class="info-card" id="ambCard" style="opacity:.4;transition:opacity .5s">
+        <div class="info-card-header">
+          <span class="info-card-title">🚑 Assigned Ambulance</span>
+          <span id="ambTypeBadge" class="badge badge-blue">—</span>
+        </div>
+        <div class="info-card-body">
+          <div class="info-row"><span class="info-row-label">Unit ID</span><span class="info-row-val mono" id="ambId" style="font-family:var(--font-mono);color:var(--blue)">—</span></div>
+          <div class="info-row"><span class="info-row-label">Driver</span><span class="info-row-val" id="ambDriver">—</span></div>
+          <div class="info-row"><span class="info-row-label">Vehicle Type</span><span class="info-row-val" id="ambType">—</span></div>
+          <div class="info-row"><span class="info-row-label">Equipment</span><span class="info-row-val" style="font-size:.75rem;color:var(--text-dim)">AED, O2, Stretcher, Defibrillator</span></div>
+        </div>
+        <div class="call-btns-row">
+          <a id="ambCallBtn" href="#" class="call-btn call-btn-amb" onclick="callAmbulance(event)">📞 Call Driver</a>
+        </div>
+      </div>
+
+      <!-- HOSPITAL CARD -->
+      <div class="info-card">
+        <div class="info-card-header">
+          <span class="info-card-title">🏥 Destination Hospital</span>
+          <span id="hospTypeBadge" class="badge badge-green">—</span>
+        </div>
+        <div class="info-card-body">
+          <div class="info-row"><span class="info-row-label">Hospital</span><span class="info-row-val" id="hospName" style="font-weight:600">—</span></div>
+          <div class="info-row"><span class="info-row-label">Type</span><span class="info-row-val" id="hospType">—</span></div>
+          <div class="info-row"><span class="info-row-label">Available Beds</span><span class="info-row-val green" id="hospBeds" style="color:var(--green)">—</span></div>
+          <div class="info-row"><span class="info-row-label">ICU Available</span><span class="info-row-val" id="hospIcu" style="color:var(--yellow)">—</span></div>
+          <div class="info-row"><span class="info-row-label">Address</span><span class="info-row-val" id="hospAddr" style="font-size:.75rem;color:var(--text-dim)">—</span></div>
+        </div>
+        <div class="call-btns-row">
+          <a id="hospCallBtn" href="#" class="call-btn call-btn-hosp" onclick="callHospital(event)">📞 Call Hospital</a>
+        </div>
+      </div>
+
+      <!-- PATIENT CARD -->
+      <div class="info-card">
+        <div class="info-card-header">
+          <span class="info-card-title">🧑 Patient Details</span>
+          <span id="urgencyBadgeEl" class="urgency-badge urgency-critical">CRITICAL</span>
+        </div>
+        <div class="info-card-body">
+          <div class="info-row"><span class="info-row-label">Name</span><span class="info-row-val" id="ptName">—</span></div>
+          <div class="info-row"><span class="info-row-label">Age / Gender</span><span class="info-row-val" id="ptAgeGender">—</span></div>
+          <div class="info-row"><span class="info-row-label">Blood Group</span><span class="info-row-val" id="ptBlood" style="color:var(--red);font-family:var(--font-mono)">—</span></div>
+          <div class="info-row"><span class="info-row-label">Emergency</span><span class="info-row-val" id="ptEtype">—</span></div>
+          <div class="info-row"><span class="info-row-label">Conditions</span><span class="info-row-val" id="ptConditions" style="font-size:.78rem;color:var(--text-dim)">—</span></div>
+          <div class="info-row"><span class="info-row-label">Pickup</span><span class="info-row-val" id="ptLocation" style="font-size:.75rem">—</span></div>
+          <div class="info-row"><span class="info-row-label">Contact</span><span class="info-row-val" id="ptContact" style="font-family:var(--font-mono);font-size:.8rem">—</span></div>
+        </div>
+      </div>
+
+      <!-- REQUEST META -->
+      <div class="info-card">
+        <div class="info-card-header">
+          <span class="info-card-title">📋 Request Details</span>
+        </div>
+        <div class="info-card-body">
+          <div class="info-row"><span class="info-row-label">Request ID</span><span class="info-row-val" id="detReqId" style="font-family:var(--font-mono);color:var(--red)">—</span></div>
+          <div class="info-row"><span class="info-row-label">Created At</span><span class="info-row-val" id="detCreated" style="font-family:var(--font-mono);font-size:.78rem">—</span></div>
+          <div class="info-row"><span class="info-row-label">Coordinates</span><span class="info-row-val" id="detCoords" style="font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim)">—</span></div>
+        </div>
+      </div>
+
+    </div><!-- /info-cards -->
+
+    <!-- ACTION FOOTER -->
+    <div class="action-footer">
+      <button class="btn-cancel" onclick="cancelRequest()">✕ Cancel Request</button>
+      <button class="btn-share" onclick="shareRequest()">🔗 Share Status</button>
+    </div>
+
+  </div><!-- /left-panel -->
+
+  <!-- MAP AREA -->
+  <div class="map-area">
+    <div id="map"></div>
+    <div class="map-info-bar">
+      <div class="map-pill live blink">● LIVE TRACKING</div>
+      <div class="map-pill" id="mapSpeedPill">🚑 — km/h</div>
+      <div class="map-pill" id="mapDistPill">— km remaining</div>
+    </div>
+
+    <!-- COMPLETED OVERLAY -->
+    <div class="completed-overlay" id="completedOverlay">
+      <div class="comp-icon">🎉</div>
+      <div class="comp-title">ARRIVED!</div>
+      <div class="comp-sub">The ambulance has reached your location. Please proceed with the paramedics.</div>
+      <button class="comp-btn" onclick="window.location.href='user-location.html'">DONE — BACK TO HOME</button>
+    </div>
+  </div>
+
+</div><!-- /layout -->
+
+<script>
+// ─────────────────────────────────────────────────────
+// LOAD REQUEST DATA
+// ─────────────────────────────────────────────────────
+const raw = sessionStorage.getItem('rapidRequest');
+if (!raw) { window.location.href = 'user-location.html'; }
+const req = JSON.parse(raw);
+
+// ─────────────────────────────────────────────────────
+// POPULATE STATIC FIELDS
+// ─────────────────────────────────────────────────────
+function populate() {
+  document.getElementById('navReqId').textContent = req.reqId;
+  document.getElementById('detReqId').textContent = req.reqId;
+  document.getElementById('detCreated').textContent = new Date(req.createdAt).toLocaleString();
+  document.getElementById('detCoords').textContent = req.userLat ? `${req.userLat.toFixed(5)}, ${req.userLng.toFixed(5)}` : '—';
+
+  // Ambulance
+  document.getElementById('ambId').textContent = req.ambulance.id;
+  document.getElementById('ambDriver').textContent = req.ambulance.driver;
+  document.getElementById('ambType').textContent = req.ambulance.type + ' Unit';
+  document.getElementById('ambTypeBadge').textContent = req.ambulance.type;
+  document.getElementById('ambCallBtn').href = `tel:${req.ambulance.phone}`;
+  document.getElementById('ambCallBtn').title = req.ambulance.phone;
+
+  // Hospital
+  document.getElementById('hospName').textContent = req.hospital.name;
+  document.getElementById('hospType').textContent = req.hospital.type;
+  document.getElementById('hospBeds').textContent = req.hospital.availBeds + ' available';
+  document.getElementById('hospIcu').textContent = req.hospital.icuAvail + ' available';
+  document.getElementById('hospAddr').textContent = req.hospital.address || '—';
+  document.getElementById('hospTypeBadge').textContent = req.hospital.type;
+  document.getElementById('hospCallBtn').href = `tel:${req.hospital.phone}`;
+
+  // Patient
+  document.getElementById('ptName').textContent = req.patient.name;
+  document.getElementById('ptAgeGender').textContent = req.patient.age + ' yrs · ' + req.patient.gender;
+  document.getElementById('ptBlood').textContent = req.patient.blood || '—';
+  document.getElementById('ptEtype').textContent = req.emergencyType;
+  document.getElementById('ptConditions').textContent = req.patient.conditions || 'None';
+  document.getElementById('ptLocation').textContent = req.location;
+  document.getElementById('ptContact').textContent = req.contact;
+
+  // Urgency badge
+  const ub = document.getElementById('urgencyBadgeEl');
+  const urgMap = { critical:'urgency-critical', serious:'urgency-serious', stable:'urgency-stable' };
+  ub.className = 'urgency-badge ' + (urgMap[req.urgency] || 'urgency-critical');
+  ub.textContent = (req.urgency || 'CRITICAL').toUpperCase();
+}
+
+// ─────────────────────────────────────────────────────
+// STATUS MACHINE
+// The user's page polls localStorage every 3s.
+// When the hospital dispatches → status jumps to ALLOCATED/EN_ROUTE.
+// Timer fallback still advances if hospital hasn't acted yet.
+// ─────────────────────────────────────────────────────
+const STATUSES = [
+  { key:'PENDING',   cls:'pending',   icon:'⏳', label:'PENDING',   desc:'Request received. Waiting for hospital to dispatch...', stepId:'step-pending' },
+  { key:'ALLOCATED', cls:'allocated', icon:'🔍', label:'ALLOCATED', desc:`Ambulance assigned by ${req.hospital.name}.`, stepId:'step-allocated' },
+  { key:'EN_ROUTE',  cls:'enroute',   icon:'🚑', label:'EN ROUTE',  desc:`${req.ambulance.driver} is driving to your location.`, stepId:'step-enroute' },
+  { key:'ARRIVING',  cls:'arriving',  icon:'📍', label:'ARRIVING',  desc:'Ambulance is less than 1 min away. Be ready!', stepId:'step-arriving' },
+  { key:'COMPLETED', cls:'completed', icon:'✅', label:'ARRIVED',   desc:'Ambulance has reached your location.', stepId:'step-completed' },
+];
+
+// Map localStorage status strings → our STATUSES index
+const LS_TO_IDX = { PENDING:0, ALLOCATED:1, ONGOING:2, ARRIVING:3, COMPLETED:4 };
+
+let currentStatusIdx = 0;
+let hospitalDispatchedAmb = null; // ambulance data pushed by hospital
+let pollingActive = true;
+
+const BADGE_MAP = {
+  PENDING:   '<span class="badge badge-yellow">PENDING</span>',
+  ALLOCATED: '<span class="badge badge-blue">ALLOCATED</span>',
+  EN_ROUTE:  '<span class="badge badge-orange">EN ROUTE</span>',
+  ARRIVING:  '<span class="badge badge-green">ARRIVING</span>',
+  COMPLETED: '<span class="badge badge-green">COMPLETED</span>',
+};
+
+// Write user-side status updates back to shared store
+function updateSharedStore(statusKey) {
+  try {
+    const LS_KEY = 'whambulance_user_requests';
+    const all = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    const idx = all.findIndex(r => r.id === req.reqId);
+    if (idx !== -1) {
+      const statusMap = { PENDING:'PENDING', ALLOCATED:'ALLOCATED', EN_ROUTE:'ONGOING', ARRIVING:'ONGOING', COMPLETED:'COMPLETED' };
+      all[idx].status = statusMap[statusKey] || all[idx].status;
+      if (statusKey === 'EN_ROUTE') all[idx].eta = req.ambulance.etaMins + ' min';
+      if (statusKey === 'ARRIVING') all[idx].eta = '< 1 min';
+      if (statusKey === 'COMPLETED') all[idx].eta = null;
+      localStorage.setItem(LS_KEY, JSON.stringify(all));
+    }
+  } catch(e) {}
+}
+
+// READ hospital-side changes from shared store and react
+function pollHospitalUpdates() {
+  if (!pollingActive) return;
+  try {
+    const LS_KEY = 'whambulance_user_requests';
+    const all = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    const stored = all.find(r => r.id === req.reqId);
+    if (!stored) return;
+
+    const newIdx = LS_TO_IDX[stored.status] ?? 0;
+
+    // If hospital pushed us forward, jump to that status
+    if (newIdx > currentStatusIdx) {
+      setStatus(newIdx);
+
+      // If hospital assigned a specific ambulance, update the display
+      if (stored.assignedAmb) {
+        hospitalDispatchedAmb = stored.assignedAmb;
+        refreshAmbDisplay(stored.assignedAmb);
+      }
+      // Update ETA from hospital
+      if (stored.eta && stored.eta !== req.ambulance.etaMins + ' min') {
+        const etaEl = document.getElementById('etaDisplay');
+        if (etaEl && stored.eta !== '< 1 min') {
+          const parts = stored.eta.replace(' min','').split(':');
+          const m = parseInt(parts[0]) || 0;
+          const s = parseInt(parts[1]) || 0;
+          etaEl.textContent = m + ':' + String(s).padStart(2,'0');
+        }
+      }
+    }
+
+    // If hospital cancelled (set to COMPLETED from hospital side without ambulance movement), reflect it
+    if (stored.hospitalCancelled) {
+      showSystemMessage('The hospital has cancelled this request. Please call emergency services or try another hospital.');
+      pollingActive = false;
+    }
+  } catch(e) {}
+}
+
+// Update ambulance card when hospital assigns a real ambulance from their fleet
+function refreshAmbDisplay(amb) {
+  if (!amb) return;
+  const idEl = document.getElementById('ambId');
+  const driverEl = document.getElementById('ambDriver');
+  const typeEl = document.getElementById('ambType');
+  const badgeEl = document.getElementById('ambTypeBadge');
+  const callEl = document.getElementById('ambCallBtn');
+  if (idEl) idEl.textContent = amb.id || amb.ambId || req.ambulance.id;
+  if (driverEl) driverEl.textContent = amb.driver || req.ambulance.driver;
+  if (typeEl) typeEl.textContent = (amb.type || req.ambulance.type) + ' Unit';
+  if (badgeEl) badgeEl.textContent = amb.type || req.ambulance.type;
+  if (callEl && amb.phone) callEl.href = 'tel:' + amb.phone;
+  // Flash the ambulance card to signal update
+  const card = document.getElementById('ambCard');
+  if (card) {
+    card.style.transition = 'box-shadow .4s';
+    card.style.boxShadow = '0 0 0 2px var(--green), 0 0 20px rgba(0,230,118,.3)';
+    setTimeout(() => { card.style.boxShadow = ''; }, 2000);
+  }
+  showSystemMessage('🚑 Hospital has assigned ' + (amb.id || req.ambulance.id) + ' to your request!');
+}
+
+function showSystemMessage(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:3000;background:#111827;border:1px solid rgba(0,176,255,.35);border-radius:12px;padding:.85rem 1.4rem;font-family:'DM Sans',sans-serif;font-size:.88rem;color:#f0f4ff;box-shadow:0 8px 30px rgba(0,0,0,.5);text-align:center;max-width:420px;animation:slideDown .3s ease`;
+  t.innerHTML = msg;
+  const style = document.createElement('style');
+  style.textContent = '@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+  document.head.appendChild(style);
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 5000);
+}
+
+// Poll every 3 seconds
+const pollInterval = setInterval(pollHospitalUpdates, 3000);
+
+function setStatus(idx) {
+  if (idx >= STATUSES.length) return;
+  currentStatusIdx = idx;
+  const s = STATUSES[idx];
+  const hero = document.getElementById('statusHero');
+  hero.className = 'status-hero ' + s.cls;
+  document.getElementById('statusIcon').textContent = s.icon;
+  document.getElementById('statusIcon').style.animation = 'none';
+  setTimeout(() => document.getElementById('statusIcon').style.animation = '', 10);
+  document.getElementById('statusLabel').textContent = s.label;
+  document.getElementById('statusDesc').textContent = s.desc;
+  document.getElementById('statusBadge').innerHTML = BADGE_MAP[s.key];
+
+  // Mirror to shared store so hospital dashboard reflects this
+  updateSharedStore(s.key);
+
+  // Stepper
+  STATUSES.forEach((st, i) => {
+    const el = document.getElementById(st.stepId);
+    if (!el) return;
+    el.classList.remove('done','active');
+    if (i < idx) el.classList.add('done');
+    else if (i === idx) el.classList.add('active');
+  });
+
+  // Show ambulance card when allocated
+  if (idx >= 1) {
+    document.getElementById('ambCard').style.opacity = '1';
+  }
+
+  // Stop polling once completed
+  if (s.key === 'COMPLETED') {
+    pollingActive = false;
+    clearInterval(pollInterval);
+    setTimeout(() => document.getElementById('completedOverlay').classList.add('show'), 1200);
+  }
+}
+
+// ── TIMER FALLBACK ─────────────────────────────────────────────
+// If the hospital hasn't dispatched within 15s, auto-advance so demo feels alive.
+// In production, only the hospital's dispatch action would drive status changes.
+let timerFallbackFired = false;
+function timerFallbackAdvance() {
+  if (timerFallbackFired || !pollingActive) return;
+  // Only auto-advance if hospital hasn't already moved us forward
+  if (currentStatusIdx === 0) {
+    timerFallbackFired = true;
+    setStatus(1); // PENDING → ALLOCATED
+    setTimeout(() => { if (currentStatusIdx <= 1) setStatus(2); }, 10000); // → EN_ROUTE
+    setTimeout(() => {
+      if (currentStatusIdx <= 2) setStatus(3); // → ARRIVING
+      setTimeout(() => { if (currentStatusIdx <= 3) setStatus(4); }, 4000); // → COMPLETED
+    }, Math.max(8000, req.ambulance.etaMins * 1000 * 50));
+  }
+}
+// Fire fallback after 15 seconds if hospital hasn't acted
+setTimeout(timerFallbackAdvance, 15000);
+
+// ─────────────────────────────────────────────────────
+// MAP SETUP
+// ─────────────────────────────────────────────────────
+const userLat  = req.userLat  || 28.6139;
+const userLng  = req.userLng  || 77.209;
+const hospLat  = req.hospital.lat  || userLat + 0.02;
+const hospLng  = req.hospital.lng  || userLng + 0.02;
+
+let ambLat = req.ambulance.startLat || userLat + 0.015;
+let ambLng = req.ambulance.startLng || userLng + 0.015;
+
+const map = L.map('map', { zoomControl: true, attributionControl: false })
+  .setView([userLat, userLng], 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+// User marker
+const userIcon = L.divIcon({
+  html: `<div style="width:22px;height:22px;border-radius:50%;background:#FF1744;border:3px solid #fff;box-shadow:0 0 0 6px rgba(255,23,68,.25),0 2px 8px rgba(0,0,0,.5)"></div>`,
+  className:'', iconAnchor:[11,11]
+});
+const userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map);
+userMarker.bindPopup(`<div class="map-popup" style="font-family:'DM Sans',sans-serif;color:#f0f4ff;padding:.75rem;min-width:160px"><div style="font-weight:600;margin-bottom:.25rem">📍 ${req.patient.name}</div><div style="font-size:.75rem;color:#7a8aaa">${req.location}</div></div>`);
+
+// Hospital marker
+const hospIcon = L.divIcon({
+  html: `<div style="width:32px;height:32px;border-radius:8px;background:#FFD600;border:2px solid rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.5)">🏥</div>`,
+  className:'', iconAnchor:[16,16]
+});
+const hospMarker = L.marker([hospLat, hospLng], { icon: hospIcon }).addTo(map);
+hospMarker.bindPopup(`<div class="map-popup" style="font-family:'DM Sans',sans-serif;color:#f0f4ff;padding:.75rem;min-width:180px"><div style="font-weight:600;margin-bottom:.3rem">${req.hospital.name}</div><div style="font-size:.75rem;color:#7a8aaa">${req.hospital.type}</div><div style="font-size:.75rem;color:#00E676;margin-top:.3rem">🛏 ${req.hospital.availBeds} beds available</div></div>`);
+
+// Ambulance marker
+const ambIcon = L.divIcon({
+  html: `<div id="ambIconEl" style="width:36px;height:36px;border-radius:50%;background:#FF6D00;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 0 5px rgba(255,109,0,.25),0 3px 10px rgba(0,0,0,.5);animation:ambBounce 1s ease infinite">🚑</div>`,
+  className:'', iconAnchor:[18,18]
+});
+const ambMarker = L.marker([ambLat, ambLng], { icon: ambIcon }).addTo(map);
+
+// Route line
+let routeLine = L.polyline([[ambLat, ambLng], [userLat, userLng]], {
+  color:'#FF6D00', weight:3, dashArray:'8 6', opacity:.7
+}).addTo(map);
+
+// Fit map to show all three points
+const bounds = L.latLngBounds([[userLat, userLng],[hospLat, hospLng],[ambLat, ambLng]]);
+map.fitBounds(bounds.pad(0.2));
+
+// ─────────────────────────────────────────────────────
+// AMBULANCE MOVEMENT SIMULATION
+// Moves from startPos → user → hospital
+// ─────────────────────────────────────────────────────
+const PHASE1_STEPS = 120; // amb → user
+const PHASE2_STEPS = 80;  // user → hospital (after pickup)
+let animFrame = 0;
+let phase = 1;
+
+// Waypoints with slight curve (random midpoints for realism)
+function lerp(a, b, t) { return a + (b - a) * t; }
+function ease(t) { return t < .5 ? 2*t*t : -1 + (4 - 2*t)*t; } // easeInOut
+
+const midLat1 = lerp(ambLat, userLat, .5) + (Math.random()-.5)*.008;
+const midLng1 = lerp(ambLng, userLng, .5) + (Math.random()-.5)*.008;
+const midLat2 = lerp(userLat, hospLat, .5) + (Math.random()-.5)*.006;
+const midLng2 = lerp(userLng, hospLng, .5) + (Math.random()-.5)*.006;
+
+let pathHistory = [[ambLat, ambLng]];
+let pathLine = L.polyline([[ambLat, ambLng]], { color:'#FF6D00', weight:3, opacity:.9 }).addTo(map);
+
+const ANIM_INTERVAL = (req.ambulance.etaMins * 60 * 1000) / PHASE1_STEPS;
+
+function quadBezier(p0lat, p0lng, p1lat, p1lng, p2lat, p2lng, t) {
+  return {
+    lat: (1-t)**2*p0lat + 2*(1-t)*t*p1lat + t**2*p2lat,
+    lng: (1-t)**2*p0lng + 2*(1-t)*t*p1lng + t**2*p2lng,
+  };
+}
+
+let animInterval = setInterval(() => {
+  if (phase === 1) {
+    const t = ease(animFrame / PHASE1_STEPS);
+    const pos = quadBezier(ambLat, ambLng, midLat1, midLng1, userLat, userLng, Math.min(t, 1));
+    ambMarker.setLatLng([pos.lat, pos.lng]);
+    pathHistory.push([pos.lat, pos.lng]);
+    pathLine.setLatLngs(pathHistory);
+    routeLine.setLatLngs([[pos.lat, pos.lng],[userLat, userLng]]);
+
+    // Update distance & speed info
+    const dist = haversine(pos.lat, pos.lng, userLat, userLng);
+    const speed = Math.round(40 + Math.random() * 40);
+    document.getElementById('distDisplay').textContent = dist.toFixed(2) + ' km';
+    document.getElementById('mapDistPill').textContent = `${dist.toFixed(2)} km remaining`;
+    document.getElementById('mapSpeedPill').textContent = `🚑 ${speed} km/h`;
+
+    // ETA countdown
+    const remainSecs = Math.round((1 - animFrame/PHASE1_STEPS) * req.ambulance.etaMins * 60);
+    const m = Math.floor(remainSecs / 60), s = remainSecs % 60;
+    const etaEl = document.getElementById('etaDisplay');
+    etaEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    etaEl.className = 'eta-time' + (m < 2 ? ' urgent' : '');
+
+    animFrame++;
+    if (animFrame >= PHASE1_STEPS) {
+      phase = 2;
+      animFrame = 0;
+      document.getElementById('etaDisplay').textContent = '0:00';
+      // Update route to hospital
+      routeLine.setLatLngs([[userLat,userLng],[hospLat,hospLng]]);
+      routeLine.setStyle({ color:'#00E676' });
+    }
+  } else if (phase === 2) {
+    const t = ease(animFrame / PHASE2_STEPS);
+    const pos = quadBezier(userLat, userLng, midLat2, midLng2, hospLat, hospLng, Math.min(t, 1));
+    ambMarker.setLatLng([pos.lat, pos.lng]);
+    routeLine.setLatLngs([[pos.lat, pos.lng],[hospLat, hospLng]]);
+    animFrame++;
+
+    const dist = haversine(pos.lat, pos.lng, hospLat, hospLng);
+    document.getElementById('distDisplay').textContent = dist.toFixed(2) + ' km to hospital';
+    document.getElementById('mapDistPill').textContent = `${dist.toFixed(2)} km to hospital`;
+
+    if (animFrame >= PHASE2_STEPS) {
+      clearInterval(animInterval);
+      document.getElementById('mapDistPill').textContent = '🏥 Arrived at hospital';
+      document.getElementById('distDisplay').textContent = 'At hospital';
+    }
+  }
+}, Math.max(ANIM_INTERVAL, 300));
+
+// ─────────────────────────────────────────────────────
+// ETA INIT
+// ─────────────────────────────────────────────────────
+function initEta() {
+  const m = req.ambulance.etaMins, s = req.ambulance.etaSecs || 0;
+  document.getElementById('etaDisplay').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  const dist = haversine(ambLat, ambLng, userLat, userLng);
+  document.getElementById('distDisplay').textContent = dist.toFixed(2) + ' km';
+  document.getElementById('mapDistPill').textContent = `${dist.toFixed(2)} km remaining`;
+}
+
+// ─────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────
+function haversine(lat1,lon1,lat2,lon2) {
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.asin(Math.sqrt(a));
+}
+
+function callAmbulance(e) {
+  e.preventDefault();
+  alert(`📞 Calling Ambulance Driver: ${req.ambulance.driver}\n${req.ambulance.phone}`);
+}
+function callHospital(e) {
+  e.preventDefault();
+  alert(`📞 Calling Hospital: ${req.hospital.name}\n${req.hospital.phone}`);
+}
+function cancelRequest() {
+  if (confirm('Are you sure you want to cancel this emergency request?')) {
+    pollingActive = false;
+    clearInterval(pollInterval);
+    clearInterval(animInterval);
+    // Mark as cancelled in shared store so hospital dashboard reflects it
+    try {
+      const LS_KEY = 'whambulance_user_requests';
+      const all = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      const idx = all.findIndex(r => r.id === req.reqId);
+      if (idx !== -1) { all[idx].status = 'COMPLETED'; all[idx].userCancelled = true; localStorage.setItem(LS_KEY, JSON.stringify(all)); }
+    } catch(e) {}
+    sessionStorage.removeItem('rapidRequest');
+    window.location.href = 'user-location.html';
+  }
+}
+function shareRequest() {
+  const txt = `RAPID Emergency Request\nID: ${req.reqId}\nPatient: ${req.patient.name}\nAmbulance: ${req.ambulance.id} (${req.ambulance.driver})\nHospital: ${req.hospital.name}\nETA: ${req.ambulance.etaMins} min`;
+  if (navigator.share) {
+    navigator.share({ title: 'RAPID Emergency Status', text: txt });
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(() => alert('Status copied to clipboard!'));
+  } else {
+    alert(txt);
+  }
+}
+
+// Popup css hack for dark theme
+const style = document.createElement('style');
+style.textContent = `
+  .leaflet-popup-content-wrapper{background:#111827!important;border:1px solid rgba(255,23,68,.3)!important;border-radius:12px!important;color:#f0f4ff!important;padding:0!important;box-shadow:0 8px 30px rgba(0,0,0,.5)!important}
+  .leaflet-popup-tip{background:#111827!important}
+  .leaflet-popup-content{margin:0!important}
+  @keyframes ambBounce{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+`;
+document.head.appendChild(style);
+
+// ─────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────
+populate();
+setStatus(0);
+initEta();
+</script>
+</body>
+</html>
